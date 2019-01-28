@@ -1,20 +1,13 @@
 /*
-Copyright 2016 The Kubernetes Authors.
+k8s标签生成log收集配置文件
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
+1. k8s标签->Pods
+2. Pods->ContainerIds
+3. ContainerIds->logHostPath
+4. logHostPath->配置文件
 
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
 */
 
-// Note: the example only works with the code within the same release/branch.
 package main
 
 import (
@@ -24,16 +17,16 @@ import (
 	"path/filepath"
 	"time"
 
-	"k8s.io/apimachinery/pkg/api/errors"
+	"github.com/docker/docker/client"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
-	"github.com/docker/docker/client"
 
 	"golang.org/x/net/context"
 )
 
 func main() {
+
 	var kubeconfig *string
 	if home := homeDir(); home != "" {
 		kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
@@ -41,12 +34,6 @@ func main() {
 		kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
 	}
 	flag.Parse()
-
-
-	docker_c, err := client.NewClientWithOpts(client.WithVersion("1.39"))
-	if err != nil {
-		panic(err.Error())
-	}
 
 	// use the current context in kubeconfig
 	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
@@ -59,38 +46,41 @@ func main() {
 	if err != nil {
 		panic(err.Error())
 	}
+
+
+	ctx := context.Background()
+
+	docker_c, err := client.NewClientWithOpts(client.FromEnv)
+	if err != nil {
+		panic(err.Error())
+	}
+
 	for {
-		pods, err := clientset.CoreV1().Pods("").List(metav1.ListOptions{})
+
+		namespace := "default"
+		pods, err := clientset.CoreV1().Pods(namespace).List(metav1.ListOptions{})
 		if err != nil {
 			panic(err.Error())
 		}
 		fmt.Printf("There are %d pods in the cluster\n", len(pods.Items))
 
+		logDestination := "/busybox-data"
+
 		for _, d := range pods.Items {
 			containerId := d.Status.ContainerStatuses[0].ContainerID[9:]
 			fmt.Printf("The pod %s containerID is %s\n", d.Name, containerId)
-			containerJSON, err := docker_c.ContainerInspect(context.Background(), containerId)
+			containerJSON, err := docker_c.ContainerInspect(ctx, containerId)
 			if err != nil {
 				panic(err.Error())
 			}
-			fmt.Printf("the containerJson is %s", containerJSON)
-		}
+			for _, m := range containerJSON.Mounts {
+				fmt.Printf("the container mount source is %s and destination is %s\n",
+					m.Source, m.Destination)
 
-		// Examples for error handling:
-		// - Use helper functions like e.g. errors.IsNotFound()
-		// - And/or cast to StatusError and use its properties like e.g. ErrStatus.Message
-		namespace := "default"
-		pod := "example-xxxxx"
-		_, err = clientset.CoreV1().Pods(namespace).Get(pod, metav1.GetOptions{})
-		if errors.IsNotFound(err) {
-			fmt.Printf("Pod %s in namespace %s not found\n", pod, namespace)
-		} else if statusError, isStatus := err.(*errors.StatusError); isStatus {
-			fmt.Printf("Error getting pod %s in namespace %s: %v\n",
-				pod, namespace, statusError.ErrStatus.Message)
-		} else if err != nil {
-			panic(err.Error())
-		} else {
-			fmt.Printf("Found pod %s in namespace %s\n", pod, namespace)
+				if m.Destination == logDestination {
+					fmt.Printf("the host log dir is %s\n", m.Source)
+				}
+			}
 		}
 
 		time.Sleep(10 * time.Second)

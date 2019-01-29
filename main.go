@@ -51,20 +51,25 @@ func main() {
 	informer := factory.Core().V1().Pods().Informer()
 	stopper := make(chan struct{})
 	defer close(stopper)
-	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
-			// "k8s.io/apimachinery/pkg/apis/meta/v1" provides an Object
-			// interface that allows us to get metadata easily
+	informer.AddEventHandler(cache.FilteringResourceEventHandler{
+		FilterFunc: func(obj interface{}) bool {
 			mObj := obj.(*corev1.Pod)
 			fmt.Printf("the pod %v is ready ???\n", mObj.Status.Phase)
-			containerId := mObj.Status.ContainerStatuses[0].ContainerID[9:]
-			fmt.Printf("New Pod %s Added to Store \t container id is %s\n", mObj.Name, containerId)
-			getHostLogDir(containerId)
+			if mObj.Status.Phase == corev1.PodRunning {
+				return true
+			}
+			return false
+		},
+		Handler: cache.ResourceEventHandlerFuncs{
+			AddFunc: func(obj interface{}) {
+				mObj := obj.(*corev1.Pod)
+				containerId := mObj.Status.ContainerStatuses[0].ContainerID[9:]
+				fmt.Printf("New Pod %s Added to Store \t container id is %s\n", mObj.Name, containerId)
+				getHostLogDir(containerId)
+			},
 		},
 	})
-
 	informer.Run(stopper)
-
 }
 
 func getHostLogDir(containerId string) string {

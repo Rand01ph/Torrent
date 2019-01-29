@@ -74,7 +74,7 @@ func main() {
 	informer.Run(stopper)
 }
 
-func getHostLogDir(ctx context.Context,containerId string) string {
+func getHostLogDir(ctx context.Context, containerId string) string {
 
 	rt := ""
 
@@ -101,7 +101,6 @@ func getHostLogDir(ctx context.Context,containerId string) string {
 
 	return rt
 }
-
 
 func homeDir() string {
 	if h := os.Getenv("HOME"); h != "" {

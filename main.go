@@ -13,14 +13,14 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/docker/docker/client"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/informers"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/clientcmd"
 	"os"
 	"path/filepath"
-	"time"
-
-	"github.com/docker/docker/client"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
 
 	"golang.org/x/net/context"
 )
@@ -47,44 +47,53 @@ func main() {
 		panic(err.Error())
 	}
 
+	factory := informers.NewSharedInformerFactory(clientset, 0)
+	informer := factory.Core().V1().Pods().Informer()
+	stopper := make(chan struct{})
+	defer close(stopper)
+	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			// "k8s.io/apimachinery/pkg/apis/meta/v1" provides an Object
+			// interface that allows us to get metadata easily
+			mObj := obj.(*corev1.Pod)
+			fmt.Printf("the pod %v is ready ???\n", mObj.Status.Phase)
+			containerId := mObj.Status.ContainerStatuses[0].ContainerID[9:]
+			fmt.Printf("New Pod %s Added to Store \t container id is %s\n", mObj.Name, containerId)
+			getHostLogDir(containerId)
+		},
+	})
+
+	informer.Run(stopper)
+
+}
+
+func getHostLogDir(containerId string) string {
 
 	ctx := context.Background()
+	rt := ""
 
 	docker_c, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
 		panic(err.Error())
 	}
 
-	for {
+	logDestination := "/busybox-data"
 
-		namespace := "default"
-		pods, err := clientset.CoreV1().Pods(namespace).List(metav1.ListOptions{})
-		if err != nil {
-			panic(err.Error())
-		}
-		fmt.Printf("There are %d pods in the cluster\n", len(pods.Items))
-
-		logDestination := "/busybox-data"
-
-		for _, d := range pods.Items {
-			containerId := d.Status.ContainerStatuses[0].ContainerID[9:]
-			fmt.Printf("The pod %s containerID is %s\n", d.Name, containerId)
-			containerJSON, err := docker_c.ContainerInspect(ctx, containerId)
-			if err != nil {
-				panic(err.Error())
-			}
-			for _, m := range containerJSON.Mounts {
-				fmt.Printf("the container mount source is %s and destination is %s\n",
-					m.Source, m.Destination)
-
-				if m.Destination == logDestination {
-					fmt.Printf("the host log dir is %s\n", m.Source)
-				}
-			}
-		}
-
-		time.Sleep(10 * time.Second)
+	containerJSON, err := docker_c.ContainerInspect(ctx, containerId)
+	if err != nil {
+		panic(err.Error())
 	}
+	for _, m := range containerJSON.Mounts {
+		fmt.Printf("the container mount source is %s and destination is %s\n",
+			m.Source, m.Destination)
+
+		if m.Destination == logDestination {
+			fmt.Printf("the host log dir is %s\n", m.Source)
+			rt = m.Source
+		}
+	}
+
+	return rt
 }
 
 

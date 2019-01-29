@@ -47,6 +47,8 @@ func main() {
 		panic(err.Error())
 	}
 
+	ctx := context.Background()
+
 	factory := informers.NewSharedInformerFactory(clientset, 0)
 	informer := factory.Core().V1().Pods().Informer()
 	stopper := make(chan struct{})
@@ -65,16 +67,15 @@ func main() {
 				mObj := obj.(*corev1.Pod)
 				containerId := mObj.Status.ContainerStatuses[0].ContainerID[9:]
 				fmt.Printf("New Pod %s Added to Store \t container id is %s\n", mObj.Name, containerId)
-				getHostLogDir(containerId)
+				go getHostLogDir(ctx, containerId)
 			},
 		},
 	})
 	informer.Run(stopper)
 }
 
-func getHostLogDir(containerId string) string {
+func getHostLogDir(ctx context.Context,containerId string) string {
 
-	ctx := context.Background()
 	rt := ""
 
 	docker_c, err := client.NewClientWithOpts(client.FromEnv)

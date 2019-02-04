@@ -11,41 +11,49 @@ k8s标签生成log收集配置文件
 package main
 
 import (
-	"flag"
 	"fmt"
 	"github.com/docker/docker/client"
+	"golang.org/x/net/context"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/tools/clientcmd"
-	"os"
-	"path/filepath"
-
-	"golang.org/x/net/context"
 )
 
 func main() {
 
-	var kubeconfig *string
-	if home := homeDir(); home != "" {
-		kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
-	} else {
-		kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
-	}
-	flag.Parse()
+	//var kubeconfig *string
+	//if home := homeDir(); home != "" {
+	//	kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
+	//} else {
+	//	kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
+	//}
+	//flag.Parse()
+	//
+	//// use the current context in kubeconfig
+	//config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
+	//if err != nil {
+	//	panic(err.Error())
+	//}
+	//
+	//// create the clientset
+	//clientset, err := kubernetes.NewForConfig(config)
+	//if err != nil {
+	//	panic(err.Error())
+	//}
 
-	// use the current context in kubeconfig
-	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
+	// creates the in-cluster config
+	config, err := rest.InClusterConfig()
 	if err != nil {
 		panic(err.Error())
 	}
-
-	// create the clientset
+	// creates the clientset
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		panic(err.Error())
 	}
+
 
 	ctx := context.Background()
 
@@ -74,11 +82,12 @@ func main() {
 	informer.Run(stopper)
 }
 
+
 func getHostLogDir(ctx context.Context, containerId string) string {
 
 	rt := ""
 
-	docker_c, err := client.NewClientWithOpts(client.FromEnv)
+	docker_c, err := client.NewClientWithOpts(client.WithVersion("1.38"))
 	if err != nil {
 		panic(err.Error())
 	}
@@ -102,9 +111,9 @@ func getHostLogDir(ctx context.Context, containerId string) string {
 	return rt
 }
 
-func homeDir() string {
-	if h := os.Getenv("HOME"); h != "" {
-		return h
-	}
-	return os.Getenv("USERPROFILE") // windows
-}
+//func homeDir() string {
+//	if h := os.Getenv("HOME"); h != "" {
+//		return h
+//	}
+//	return os.Getenv("USERPROFILE") // windows
+//}

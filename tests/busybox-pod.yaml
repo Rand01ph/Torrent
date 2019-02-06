@@ -6,9 +6,8 @@ metadata:
 spec:
   containers:
   - image: busybox
-    command: 
-      - sleep
-      - "3600"
+    command: ["/bin/sh"]
+    args: ["-c", "while true; do echo hello >> /busybox-data/1.log; sleep 10;done"]
     imagePullPolicy: IfNotPresent
     name: busybox
     volumeMounts:

@@ -12,6 +12,8 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"text/template"
 	"github.com/docker/docker/client"
 	"golang.org/x/net/context"
 	corev1 "k8s.io/api/core/v1"
@@ -87,14 +89,14 @@ func getHostLogDir(ctx context.Context, containerId string) string {
 
 	rt := ""
 
-	docker_c, err := client.NewClientWithOpts(client.WithVersion("1.38"))
+	dockerC, err := client.NewClientWithOpts(client.WithVersion("1.38"))
 	if err != nil {
 		panic(err.Error())
 	}
 
 	logDestination := "/busybox-data"
 
-	containerJSON, err := docker_c.ContainerInspect(ctx, containerId)
+	containerJSON, err := dockerC.ContainerInspect(ctx, containerId)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -105,6 +107,27 @@ func getHostLogDir(ctx context.Context, containerId string) string {
 		if m.Destination == logDestination {
 			fmt.Printf("the host log dir is %s\n", m.Source)
 			rt = m.Source
+
+			templ, err := template.ParseFiles("filebeat-input-log.tpl")
+			if err != nil {
+				panic(err.Error())
+			}
+
+			config := map[string]string{
+				"logPath": rt,
+			}
+
+			f, err := os.Create("/tmp/" + containerId + ".yaml")
+			if err != nil {
+				panic(err.Error())
+			}
+
+			err = templ.Execute(f, config)
+			if err != nil {
+				panic(err.Error())
+			}
+
+			f.Close()
 		}
 	}
 

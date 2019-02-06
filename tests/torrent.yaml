@@ -23,6 +23,8 @@ spec:
         volumeMounts:
           - mountPath: /var/run/docker.sock
             name: docker-sock-volume
+          - mountPath: /tmp
+            name: inputs
       - name: filebeat
         image: docker.elastic.co/beats/filebeat:6.5.4
         args: [
@@ -81,9 +83,9 @@ spec:
           hostPath:
             path: /var/lib/docker/containers
         - name: inputs
-          configMap:
-            defaultMode: 0600
-            name: filebeat-inputs
+          emptyDir: {}
+#            defaultMode: 0600
+#            name: filebeat-inputs
         # data folder stores a registry of read status for all files, so we don't send everything again on a Filebeat pod restart
         - name: data
           hostPath:
@@ -128,20 +130,19 @@ data:
       pretty: true
 
 ---
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: filebeat-inputs
-  labels:
-    k8s-app: torrent-logging
-data:
-  kubernetes.yml: |-
-    - type: docker
-      fields:
-        name: kkkkkkkkkkkkk
-      containers.ids:
-      - "*"
-      processors:
-        - add_kubernetes_metadata:
-            in_cluster: true
----
+#apiVersion: v1
+#kind: ConfigMap
+#metadata:
+#  name: filebeat-inputs
+#  labels:
+#    k8s-app: torrent-logging
+#data:
+#  kubernetes.yml: |-
+#    - type: docker
+#      fields:
+#        name: kkkkkkkkkkkkk
+#      containers.ids:
+#      - "*"
+#      processors:
+#        - add_kubernetes_metadata:
+#            in_cluster: true

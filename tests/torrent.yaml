@@ -123,11 +123,9 @@ data:
         # Reload module configs as they change:
         reload.enabled: true
         reload.period: 10s
-    # output.file:
-    #   path: "/tmp/filefeat"
-    #   filename: filebeat
-    output.console:
-      pretty: true
+    output.file:
+      path: "/tmp/torrent"
+      filename: torrent
 
 ---
 #apiVersion: v1

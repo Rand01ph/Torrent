@@ -106,7 +106,7 @@ func getHostLogDir(ctx context.Context, containerId string) string {
 
 		if m.Destination == logDestination {
 			fmt.Printf("the host log dir is %s\n", m.Source)
-			rt = m.Source
+			rt = "/host" + m.Source
 
 			templ, err := template.ParseFiles("filebeat-input-log.tpl")
 			if err != nil {
@@ -117,7 +117,7 @@ func getHostLogDir(ctx context.Context, containerId string) string {
 				"logPath": rt,
 			}
 
-			f, err := os.Create("/tmp/" + containerId + ".yaml")
+			f, err := os.Create("/tmp/" + containerId + ".yml")
 			if err != nil {
 				panic(err.Error())
 			}

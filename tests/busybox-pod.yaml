@@ -3,8 +3,9 @@ kind: Pod
 metadata:
   name: busybox
   namespace: default
-  labels:
-    torrent: "true"
+  annotations:
+    torrent/module_name: busybox
+    torrent/log_path: "nginx:/busybox-data:*.log;pro:/var/log:pro.log"
 spec:
   containers:
   - image: busybox
@@ -12,14 +13,13 @@ spec:
     args: ["-c", "while true; do echo hello >> /busybox-data/1.log; sleep 10;done"]
     imagePullPolicy: IfNotPresent
     name: busybox
-    env:
-    - name: MODULE_NAME
-      value: "busybox"
-    - name: LOG_PATH
-      value: "nginx:/tmp/*.log;pro:/var/log/*.log"
     volumeMounts:
     - mountPath: /busybox-data
       name: data
+    - mountPath: /var/log
+      name: log-data
   volumes:
   - name: data
+    emptyDir: {}
+  - name: log-data
     emptyDir: {}

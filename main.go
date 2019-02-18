@@ -28,6 +28,10 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
+const (
+
+)
+
 func main() {
 
 	var kubeconfig *string

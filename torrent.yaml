@@ -1,7 +1,47 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: torrent
+  namespace: kube-system
+
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRole
+metadata:
+  name: torrent
+  namespace: kube-system
+rules:
+- apiGroups: [""]
+  resources:
+  - nodes
+  - nodes/proxy
+  - services
+  - endpoints
+  - pods
+  verbs: ["get", "list", "watch"]
+
+---
+
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1beta1
+metadata:
+  name: torrent
+roleRef:
+  kind: ClusterRole
+  name: torrent
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+- kind: ServiceAccount
+  name: torrent
+  namespace: kube-system
+---
+
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: torrent-filebeat
+  namespace: kube-system
   labels:
     k8s-app: torrent-logging
 spec:
@@ -13,20 +53,20 @@ spec:
       labels:
         name: torrent-filebeat
     spec:
+      serviceAccountName: torrent
       containers:
       - name: torrent-filebeat
-        image: torrent:v2
-        imagePullPolicy: Never
-        env:
-          - name: LOG_NAMESPACE
-            value: "default"
+        image: 10.5.29.100:5000/torrent:v5
+        imagePullPolicy: IfNotPresent
         volumeMounts:
           - mountPath: /var/run/docker.sock
             name: docker-sock-volume
+          # mount for generate log inputs
           - mountPath: /tmp
             name: inputs
       - name: filebeat
         image: docker.elastic.co/beats/filebeat:6.5.4
+        imagePullPolicy: IfNotPresent
         args: [
           "-c", "/etc/filebeat.yml",
           "-e",
@@ -91,6 +131,7 @@ spec:
           hostPath:
             path: /var/lib/filebeat-data
             type: DirectoryOrCreate
+        # use for collect emptyDir log
         - name: root
           hostPath:
             path: /
@@ -99,6 +140,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: filebeat-config
+  namespace: kube-system
   labels:
     k8s-app: torrent-logging
 data:
@@ -123,9 +165,18 @@ data:
         # Reload module configs as they change:
         reload.enabled: true
         reload.period: 10s
-    output.file:
-      path: "/tmp/torrent"
-      filename: torrent
+    output.kafka:
+      enabled: true
+      hosts: ["10.5.25.3:9092"]
+      version: 0.10.2.1
+      topic: '%{[fields.module_name]}'
+      required_acks: 1
+      compression: gzip
+      max_message_bytes: 1000000
+#    output.file:
+#      path: "/tmp/torrent"
+#      filename: torrent
+
 
 ---
 #apiVersion: v1

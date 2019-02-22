@@ -56,7 +56,7 @@ spec:
       serviceAccountName: torrent
       containers:
       - name: torrent-filebeat
-        image: 10.5.29.100:5000/torrent:v5
+        image: 10.5.29.100:5000/torrent:v6.1
         imagePullPolicy: IfNotPresent
         volumeMounts:
           - mountPath: /var/run/docker.sock
@@ -165,14 +165,21 @@ data:
         # Reload module configs as they change:
         reload.enabled: true
         reload.period: 10s
-    output.kafka:
-      enabled: true
-      hosts: ["10.5.25.3:9092"]
-      version: 0.10.2.1
-      topic: '%{[fields.module_name]}'
-      required_acks: 1
-      compression: gzip
-      max_message_bytes: 1000000
+    output.elasticsearch:
+      hosts: ["http://elasticsearch.elasticsearch:9200"]
+      index: "customlogs-%{[fields.module_name]}-%{[fields.log_type]}-%{+yyyy.MM.dd}"
+    setup.template:
+      setup.template.name: "customlogs"
+      setup.template.pattern: "customlogs-*"
+      enabled: false
+#    output.kafka:
+#      enabled: true
+#      hosts: ["10.5.25.3:9092"]
+#      version: 0.10.2.1
+#      topic: '%{[fields.module_name]}'
+#      required_acks: 1
+#      compression: gzip
+#      max_message_bytes: 1000000
 #    output.file:
 #      path: "/tmp/torrent"
 #      filename: torrent

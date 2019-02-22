@@ -122,7 +122,7 @@ func getHostLogDir(ctx context.Context, containerId string, logType string, logD
 
 	containerJSON, err := dockerC.ContainerInspect(ctx, containerId)
 	if err != nil {
-		fmt.Printf("No such container: %v\n", containerId)
+		fmt.Println(err.Error())
 		return ""
 	}
 	for _, m := range containerJSON.Mounts {

@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"k8s.io/client-go/rest"
 	"os"
+	"path"
 	"strings"
 	"text/template"
 
@@ -99,7 +100,13 @@ func main() {
 					logPaths := strings.Split(v, ";")
 					for _, l := range logPaths {
 						logDetails := strings.Split(l, ":")
-						go getHostLogDir(ctx, containerId, logDetails[0], logDetails[1], logDetails[2], moduleName)
+						if len(logDetails) == 2 {
+							logdir, logfile := path.Split(logDetails[1])
+							go getHostLogDir(ctx, containerId, logDetails[0], logdir, logfile, moduleName)
+						}
+						if len(logDetails) == 3 {
+							go getHostLogDir(ctx, containerId, logDetails[0], logDetails[1], logDetails[2], moduleName)
+						}
 					}
 				} else {
 					fmt.Println("Log Path Not Found")

@@ -37,6 +37,64 @@ subjects:
   namespace: kube-system
 ---
 
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: filebeat-config
+  namespace: kube-system
+  labels:
+    k8s-app: torrent-logging
+data:
+  filebeat.yml: |-
+    logging.level: debug
+    logging.to_files: true
+    logging.metrics.enabled: true
+    logging.files:
+      path: /tmp/filebeat
+      name: filebeat_log
+      keepfiles: 7
+      permissions: 0644
+    filebeat.config:
+      inputs:
+        # Mounted `filebeat-inputs` configmap:
+        path: ${path.config}/inputs.d/*.yml
+        # Reload inputs configs as they change:
+        reload.enabled: true
+        reload.period: 10s
+      modules:
+        path: ${path.config}/modules.d/*.yml
+        # Reload module configs as they change:
+        reload.enabled: true
+        reload.period: 10s
+    output.kafka:
+      enabled: true
+      hosts: ["10.5.25.3:9092"]
+      version: 0.10.2.1
+      topic: '%{[fields.module_name]}'
+      required_acks: 1
+      compression: gzip
+      max_message_bytes: 1000000
+#    output.file:
+#      path: "/tmp/torrent"
+#      filename: torrent
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: filebeat-inputs
+  namespace: kube-system
+  labels:
+    k8s-app: torrent-logging
+data:
+  kubernetes.yml: |-
+    - type: docker
+      containers.ids:
+      - "*"
+      processors:
+        - add_kubernetes_metadata:
+            in_cluster: true
+---
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -56,14 +114,17 @@ spec:
       serviceAccountName: torrent
       containers:
       - name: torrent-filebeat
-        image: 10.5.29.100:5000/torrent:v6.1
-        imagePullPolicy: IfNotPresent
+        image: 10.5.29.100:5000/torrent:v1.2
+        imagePullPolicy: Always
         volumeMounts:
           - mountPath: /var/run/docker.sock
             name: docker-sock-volume
           # mount for generate log inputs
           - mountPath: /tmp
             name: inputs
+          # copy input config from ConfigMap
+          - name: input-config-map
+            mountPath: /etc/config/input
       - name: filebeat
         image: docker.elastic.co/beats/filebeat:6.5.4
         imagePullPolicy: IfNotPresent
@@ -135,70 +196,8 @@ spec:
         - name: root
           hostPath:
             path: /
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: filebeat-config
-  namespace: kube-system
-  labels:
-    k8s-app: torrent-logging
-data:
-  filebeat.yml: |-
-    logging.level: debug
-    logging.to_files: true
-    logging.metrics.enabled: true
-    logging.files:
-      path: /tmp/filebeat
-      name: filebeat_log
-      keepfiles: 7
-      permissions: 0644
-    filebeat.config:
-      inputs:
-        # Mounted `filebeat-inputs` configmap:
-        path: ${path.config}/inputs.d/*.yml
-        # Reload inputs configs as they change:
-        reload.enabled: true
-        reload.period: 10s
-      modules:
-        path: ${path.config}/modules.d/*.yml
-        # Reload module configs as they change:
-        reload.enabled: true
-        reload.period: 10s
-    output.elasticsearch:
-      hosts: ["http://elasticsearch.elasticsearch:9200"]
-      index: "customlogs-%{[fields.module_name]}-%{[fields.log_type]}-%{+yyyy.MM.dd}"
-    setup.template:
-      setup.template.name: "customlogs"
-      setup.template.pattern: "customlogs-*"
-      enabled: false
-#    output.kafka:
-#      enabled: true
-#      hosts: ["10.5.25.3:9092"]
-#      version: 0.10.2.1
-#      topic: '%{[fields.module_name]}'
-#      required_acks: 1
-#      compression: gzip
-#      max_message_bytes: 1000000
-#    output.file:
-#      path: "/tmp/torrent"
-#      filename: torrent
-
-
----
-#apiVersion: v1
-#kind: ConfigMap
-#metadata:
-#  name: filebeat-inputs
-#  labels:
-#    k8s-app: torrent-logging
-#data:
-#  kubernetes.yml: |-
-#    - type: docker
-#      fields:
-#        name: kkkkkkkkkkkkk
-#      containers.ids:
-#      - "*"
-#      processors:
-#        - add_kubernetes_metadata:
-#            in_cluster: true
+        - name: input-config-map
+          configMap:
+            # Provide the name of the ConfigMap containing the files you want
+            # to add to the container
+            name: filebeat-inputs

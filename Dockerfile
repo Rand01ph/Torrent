@@ -18,7 +18,7 @@ COPY ./ ./
 RUN CGO_ENABLED=0 go build \
     -o /app .
 
-FROM scratch AS final
+FROM alpine AS final
 COPY --from=builder /app /app
 COPY ./filebeat-input-log.tpl /filebeat-input-log.tpl
 ENTRYPOINT ["/app"]

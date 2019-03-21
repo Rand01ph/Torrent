@@ -94,6 +94,7 @@ data:
       processors:
         - add_kubernetes_metadata:
             in_cluster: true
+
 ---
 apiVersion: apps/v1
 kind: DaemonSet
@@ -113,8 +114,8 @@ spec:
     spec:
       serviceAccountName: torrent
       containers:
-      - name: torrent-filebeat
-        image: 10.5.29.100:5000/torrent:v1.2
+      - name: torrent
+        image: 10.5.29.100:5000/torrent
         imagePullPolicy: Always
         volumeMounts:
           - mountPath: /var/run/docker.sock
@@ -125,6 +126,7 @@ spec:
           # copy input config from ConfigMap
           - name: input-config-map
             mountPath: /etc/config/input
+
       - name: filebeat
         image: docker.elastic.co/beats/filebeat:6.5.4
         imagePullPolicy: IfNotPresent

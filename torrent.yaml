@@ -3,14 +3,14 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: torrent
-  namespace: kube-system
+  namespace: monitoring
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRole
 metadata:
   name: torrent
-  namespace: kube-system
+  namespace: monitoring
 rules:
 - apiGroups: [""]
   resources:
@@ -34,14 +34,14 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: torrent
-  namespace: kube-system
+  namespace: monitoring
 ---
 
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: filebeat-config
-  namespace: kube-system
+  namespace: monitoring
   labels:
     k8s-app: torrent-logging
 data:
@@ -83,7 +83,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: filebeat-inputs
-  namespace: kube-system
+  namespace: monitoring
   labels:
     k8s-app: torrent-logging
 data:
@@ -100,7 +100,7 @@ apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: torrent-filebeat
-  namespace: kube-system
+  namespace: monitoring
   labels:
     k8s-app: torrent-logging
 spec:

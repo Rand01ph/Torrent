@@ -29,7 +29,11 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-const ()
+const (
+	inputTemplatePath = "filebeat-input-log.tpl"
+	moduleNameTag = "torrent/module_name"
+	logPathTag = "torrent/log_path"
+)
 
 func main() {
 
@@ -85,12 +89,12 @@ func main() {
 
 				moduleName := ""
 				// 获取annotations中的module_name以及log_path
-				if v, ok := mObj.Annotations["torrent/module_name"]; ok {
+				if v, ok := mObj.Annotations[moduleNameTag]; ok {
 					moduleName = v
 				}
 
 				// torrent/log_path: "nginx:/busybox-data:*.log;pro:/var/log:pro.log"
-				if v, ok := mObj.Annotations["torrent/log_path"]; ok {
+				if v, ok := mObj.Annotations[logPathTag]; ok {
 					logPaths := strings.Split(v, ";")
 					for _, l := range logPaths {
 						logDetails := strings.Split(l, ":")
@@ -132,7 +136,7 @@ func getHostLogDir(ctx context.Context, containerId string, logType string, logD
 			fmt.Printf("the container %s log dir is %s\n", containerId, m.Source)
 			rt = "/host" + m.Source
 
-			templ, err := template.ParseFiles("filebeat-input-log.tpl")
+			templ, err := template.ParseFiles(inputTemplatePath)
 			if err != nil {
 				panic(err.Error())
 			}

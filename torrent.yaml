@@ -51,7 +51,7 @@ metadata:
     k8s-app: torrent-logging
 data:
   filebeat.yml: |-
-    logging.level: debug
+    logging.level: info
     logging.to_files: true
     logging.metrics.enabled: true
     logging.files:

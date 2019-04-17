@@ -25,7 +25,7 @@ import (
 
 	"github.com/docker/docker/client"
 	"golang.org/x/net/context"
-	corev1 "k8s.io/api/core/v1"
+	coreV1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
@@ -46,8 +46,8 @@ func main() {
 	if err != nil {
 		panic(err.Error())
 	}
-	// creates the clientset
-	clientset, err := kubernetes.NewForConfig(config)
+	// creates the clientSet
+	clientSet, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -87,62 +87,99 @@ func main() {
 		log.Fatal(err)
 	}
 
-	factory := informers.NewSharedInformerFactory(clientset, 0)
+	factory := informers.NewSharedInformerFactory(clientSet, 0)
 	informer := factory.Core().V1().Pods().Informer()
 	stopper := make(chan struct{})
 	defer close(stopper)
 	informer.AddEventHandler(cache.FilteringResourceEventHandler{
 		FilterFunc: func(obj interface{}) bool {
-			mObj := obj.(*corev1.Pod)
-			if mObj.Status.Phase == corev1.PodRunning {
+			mObj := obj.(*coreV1.Pod)
+			if mObj.Status.Phase == coreV1.PodRunning {
 				return true
 			}
 			return false
 		},
 		Handler: cache.ResourceEventHandlerFuncs{
-			AddFunc: func(obj interface{}) {
-				mObj := obj.(*corev1.Pod)
-				log.Printf("get for containerID is %v", mObj.Status.ContainerStatuses)
-				containerId := mObj.Status.ContainerStatuses[0].ContainerID[9:]
-				fmt.Printf("New Pod %s Added to Store \t container id is %s\n", mObj.Name, containerId)
-
-				moduleName := ""
-				// 获取annotations中的module_name以及log_path
-				if v, ok := mObj.Annotations[moduleNameTag]; ok {
-					moduleName = v
-				}
-
-				// torrent/log_path: "nginx:/busybox-data:*.log;pro:/var/log:pro.log"
-				if v, ok := mObj.Annotations[logPathTag]; ok {
-					logPaths := strings.Split(v, ";")
-					for _, l := range logPaths {
-						logDetails := strings.Split(l, ":")
-						if len(logDetails) == 2 {
-							logdir, logfile := path.Split(logDetails[1])
-							go getHostLogDir(ctx, containerId, logDetails[0], logdir, logfile, moduleName)
-						}
-						if len(logDetails) == 3 {
-							go getHostLogDir(ctx, containerId, logDetails[0], logDetails[1], logDetails[2], moduleName)
-						}
-					}
-				}
-			},
+			AddFunc:    addPodLog,
+			UpdateFunc: updatePodLog,
+			DeleteFunc: deletePodLog,
 		},
 	})
 	informer.Run(stopper)
 }
 
-func getHostLogDir(ctx context.Context, containerId string, logType string, logDestination string, logFiles string, moduleName string) string {
+func addPodLog(obj interface{}) {
+	mObj := obj.(*coreV1.Pod)
+	containerID := strings.TrimPrefix(mObj.Status.ContainerStatuses[0].ContainerID, "docker://")
+	if containerID == "" {
+		log.Fatalf("Failed to find container id %v", containerID)
+		return
+	}
+	fmt.Printf("New Pod %s Added to Store \t container id is %s\n", mObj.Name, containerID)
+	moduleName := ""
+	// 获取annotations中的module_name以及log_path
+	if v, ok := mObj.Annotations[moduleNameTag]; ok {
+		moduleName = v
+	}
+	// torrent/log_path: "nginx:/busybox-data:*.log;pro:/var/log:pro.log"
+	if v, ok := mObj.Annotations[logPathTag]; ok {
+		logPaths := strings.Split(v, ";")
+		for _, l := range logPaths {
+			logDetails := strings.Split(l, ":")
+			if len(logDetails) == 2 {
+				logDir, logFile := path.Split(logDetails[1])
+				go getHostLogDir(containerID, logDetails[0], logDir, logFile, moduleName)
+			}
+			if len(logDetails) == 3 {
+				go getHostLogDir(containerID, logDetails[0], logDetails[1], logDetails[2], moduleName)
+			}
+		}
+	}
+}
 
+func updatePodLog(oldObj, newObj interface{}) {
+	oObj := oldObj.(*coreV1.Pod)
+	oldContainerID := strings.TrimPrefix(oObj.Status.ContainerStatuses[0].ContainerID, "docker://")
+	if oldContainerID == "" {
+		log.Fatalf("Failed to find container id %v", oldContainerID)
+		return
+	}
+	nObj := newObj.(*coreV1.Pod)
+	newContainerID := strings.TrimPrefix(nObj.Status.ContainerStatuses[0].ContainerID, "docker://")
+	if newContainerID == "" {
+		log.Fatalf("Failed to find container id %v", newContainerID)
+		return
+	}
+	log.Printf("old pod %s and container id %s update ====> new pod %s and container id %s", oObj.Name, oldContainerID, nObj.Name, newContainerID)
+}
+
+func deletePodLog(obj interface{}) {
+	mObj := obj.(*coreV1.Pod)
+	containerID := strings.TrimPrefix(mObj.Status.ContainerStatuses[0].ContainerID, "docker://")
+	if containerID == "" {
+		log.Fatalf("Failed to find container id %v", containerID)
+		return
+	}
+	log.Printf("Pod %s Deleted and container id is %s", mObj.Name, containerID)
+	files, err := filepath.Glob("/tmp/"+containerID+"_*.yml")
+	if err != nil {
+		log.Fatalf("find delete config error is %v", err)
+	}
+	for _, f := range files {
+		if err := os.Remove(f); err != nil {
+			log.Fatalf("delete %s config error is %v", f, err)
+		}
+	}
+}
+
+func getHostLogDir(containerId string, logType string, logDestination string, logFiles string, moduleName string) string {
 	rt := ""
-
-	dockerC, err := client.NewClientWithOpts(client.WithVersion("1.38"))
+	dockerClient, err := client.NewClientWithOpts(client.WithVersion("1.38"))
 	//dockerC, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
 		panic(err.Error())
 	}
-
-	containerJSON, err := dockerC.ContainerInspect(ctx, containerId)
+	containerJSON, err := dockerClient.ContainerInspect(context.Background(), containerId)
 	if err != nil {
 		fmt.Println(err.Error())
 		return ""
@@ -193,17 +230,17 @@ func copyConfigMap(srcDir, dstDir string) error {
 		log.Println(err)
 	}
 	if len(files) == 0 {
-		log.Println("input 文件夹没有找到配置文件!!!")
+		log.Println("input dir has no config file!!!")
 	}
 	for _, f := range files {
 		filePath := srcDir + string(filepath.Separator) + f.Name()
-		log.Printf("配置文件路径 is %v", filePath)
+		log.Printf("config path is %v", filePath)
 		if filepath.Ext(filePath) == ".yml" {
 			dstPath := strings.Replace(filePath, srcDir, dstDir, 1)
-			log.Printf("开始Copy input 配置文件 %v to 目的地址 %v !!!\n", filePath, dstPath)
+			log.Printf("Copy input config %v to %v !!!\n", filePath, dstPath)
 			copyFile(filePath, dstPath)
 		} else {
-			log.Println("没有yml格式配置文件")
+			log.Println("no yml config")
 		}
 	}
 	return nil

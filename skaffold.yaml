@@ -4,9 +4,7 @@ build:
   artifacts:
   - image: 10.5.29.100:5000/torrent
     docker:
-      buildArgs:
-        HTTP_PROXY: http://10.67.13.42:8118
-        HTTPS_PROXY: http://10.67.13.42:8118
+      buildArgs: {}
   local: {}
 deploy:
   kubectl:

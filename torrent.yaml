@@ -1,3 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -128,7 +133,7 @@ spec:
             mountPath: /etc/config/input
 
       - name: filebeat
-        image: docker.elastic.co/beats/filebeat:6.5.4
+        image: elastic/filebeat:6.5.4
         imagePullPolicy: IfNotPresent
         args: [
           "-c", "/etc/filebeat.yml",

@@ -12,9 +12,11 @@ package main
 
 import (
 	"fmt"
+	"github.com/fsnotify/fsnotify"
 	"io"
 	"io/ioutil"
 	"k8s.io/client-go/rest"
+	"log"
 	"os"
 	"path"
 	"path/filepath"
@@ -31,8 +33,10 @@ import (
 
 const (
 	inputTemplatePath = "filebeat-input-log.tpl"
-	moduleNameTag = "torrent/module_name"
-	logPathTag = "torrent/log_path"
+	moduleNameTag     = "torrent/module_name"
+	logPathTag        = "torrent/log_path"
+	srcDir            = "/etc/config/input"
+	dstDir            = "/tmp"
 )
 
 func main() {
@@ -48,26 +52,40 @@ func main() {
 		panic(err.Error())
 	}
 
-	// copy configmap yaml
-	srcDir := "/etc/config/input"
-	dstDir := "/tmp"
-	files, err := ioutil.ReadDir(srcDir)
-	if err != nil {
-		fmt.Println(err)
-	}
-	if len(files) == 0 {
-		fmt.Println("input 文件夹没有找到配置文件!!!")
-	}
-	for _, f := range files {
-		fmt.Printf("开始Copy input 配置文件 %v !!!\n", f.Name())
-		filePath := srcDir + string(filepath.Separator) + f.Name()
-		if filepath.Ext(filePath) == "yml" {
-			dstPath := strings.Replace(f.Name(), srcDir, dstDir, 1)
-			copyFile(filePath, dstPath)
-		}
-	}
+	copyConfigMap(srcDir, dstDir)
 
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// auto reload configmap for filebeat
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer watcher.Close()
+
+	go func(ctx context.Context) {
+		for {
+			select {
+			case event := <-watcher.Events:
+				if event.Op&fsnotify.Create == fsnotify.Create {
+					if filepath.Base(event.Name) == "..data" {
+						log.Println("config map updated")
+						copyConfigMap(srcDir, dstDir)
+					}
+				}
+			case err := <-watcher.Errors:
+				log.Println("error:", err)
+			case <-ctx.Done():
+				log.Println("controller exit...")
+				return
+			}
+		}
+	}(ctx)
+	err = watcher.Add(srcDir)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	factory := informers.NewSharedInformerFactory(clientset, 0)
 	informer := factory.Core().V1().Pods().Informer()
@@ -84,6 +102,7 @@ func main() {
 		Handler: cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
 				mObj := obj.(*corev1.Pod)
+				log.Printf("get for containerID is %v", mObj.Status.ContainerStatuses)
 				containerId := mObj.Status.ContainerStatuses[0].ContainerID[9:]
 				fmt.Printf("New Pod %s Added to Store \t container id is %s\n", mObj.Name, containerId)
 
@@ -164,6 +183,30 @@ func getHostLogDir(ctx context.Context, containerId string, logType string, logD
 	}
 
 	return rt
+}
+
+func copyConfigMap(srcDir, dstDir string) error {
+	// copy configmap yaml
+	log.Println("begein to copy configmap")
+	files, err := ioutil.ReadDir(srcDir)
+	if err != nil {
+		log.Println(err)
+	}
+	if len(files) == 0 {
+		log.Println("input 文件夹没有找到配置文件!!!")
+	}
+	for _, f := range files {
+		filePath := srcDir + string(filepath.Separator) + f.Name()
+		log.Printf("配置文件路径 is %v", filePath)
+		if filepath.Ext(filePath) == ".yml" {
+			dstPath := strings.Replace(filePath, srcDir, dstDir, 1)
+			log.Printf("开始Copy input 配置文件 %v to 目的地址 %v !!!\n", filePath, dstPath)
+			copyFile(filePath, dstPath)
+		} else {
+			log.Println("没有yml格式配置文件")
+		}
+	}
+	return nil
 }
 
 func copyFile(srcFile, destFile string) error {

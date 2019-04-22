@@ -75,8 +75,7 @@ data:
       enabled: true
       hosts: ["10.5.25.3:9092"]
       version: 0.10.2.1
-      topic: '%{[fields.module_name]}'
-      required_acks: 1
+      topic: '*'
       compression: gzip
       max_message_bytes: 1000000
 #    output.file:
@@ -96,6 +95,7 @@ data:
     - type: docker
       containers.ids:
       - "*"
+      close_inactive: 48h
       processors:
         - add_kubernetes_metadata:
             in_cluster: true

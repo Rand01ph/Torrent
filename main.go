@@ -112,7 +112,7 @@ func addPodLog(obj interface{}) {
 	mObj := obj.(*coreV1.Pod)
 	containerID := strings.TrimPrefix(mObj.Status.ContainerStatuses[0].ContainerID, "docker://")
 	if containerID == "" {
-		log.Fatalf("Failed to find container id %v", containerID)
+		log.Printf("Failed to find container id %v", containerID)
 		return
 	}
 	fmt.Printf("New Pod %s Added to Store \t container id is %s\n", mObj.Name, containerID)
@@ -141,13 +141,13 @@ func updatePodLog(oldObj, newObj interface{}) {
 	oObj := oldObj.(*coreV1.Pod)
 	oldContainerID := strings.TrimPrefix(oObj.Status.ContainerStatuses[0].ContainerID, "docker://")
 	if oldContainerID == "" {
-		log.Fatalf("Failed to find container id %v", oldContainerID)
+		log.Printf("Failed to find container id %v", oldContainerID)
 		return
 	}
 	nObj := newObj.(*coreV1.Pod)
 	newContainerID := strings.TrimPrefix(nObj.Status.ContainerStatuses[0].ContainerID, "docker://")
 	if newContainerID == "" {
-		log.Fatalf("Failed to find container id %v", newContainerID)
+		log.Printf("Failed to find container id %v", newContainerID)
 		return
 	}
 	log.Printf("old pod %s and container id %s update ====> new pod %s and container id %s", oObj.Name, oldContainerID, nObj.Name, newContainerID)
@@ -157,17 +157,17 @@ func deletePodLog(obj interface{}) {
 	mObj := obj.(*coreV1.Pod)
 	containerID := strings.TrimPrefix(mObj.Status.ContainerStatuses[0].ContainerID, "docker://")
 	if containerID == "" {
-		log.Fatalf("Failed to find container id %v", containerID)
+		log.Printf("Failed to find container id %v", containerID)
 		return
 	}
 	log.Printf("Pod %s Deleted and container id is %s", mObj.Name, containerID)
 	files, err := filepath.Glob("/tmp/"+containerID+"_*.yml")
 	if err != nil {
-		log.Fatalf("find delete config error is %v", err)
+		log.Printf("find delete config error is %v", err)
 	}
 	for _, f := range files {
 		if err := os.Remove(f); err != nil {
-			log.Fatalf("delete %s config error is %v", f, err)
+			log.Printf("delete %s config error is %v", f, err)
 		}
 	}
 }

@@ -1,21 +1,21 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: monitoring
+  name: logging
 
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: torrent
-  namespace: monitoring
+  namespace: logging
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRole
 metadata:
   name: torrent
-  namespace: monitoring
+  namespace: logging
 rules:
 - apiGroups: [""]
   resources:
@@ -39,19 +39,33 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: torrent
-  namespace: monitoring
+  namespace: logging
 ---
 
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: filebeat-config
-  namespace: monitoring
+  namespace: logging
   labels:
     k8s-app: torrent-logging
 data:
   filebeat.yml: |-
-    logging.level: info
+    filebeat.autodiscover:
+      providers:
+        - type: kubernetes
+          include_annotations: ['torrent/stream']
+          templates:
+            - condition:
+                equals:
+                  kubernetes.annotations.torrent/stream: 'true'
+              config:
+                - type: docker
+                  containers:
+                    stream: all
+                    ids:
+                    - "${data.kubernetes.container.id}"
+    logging.level: error
     logging.to_files: true
     logging.metrics.enabled: true
     logging.files:
@@ -87,7 +101,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: filebeat-inputs
-  namespace: monitoring
+  namespace: logging
   labels:
     k8s-app: torrent-logging
 data:
@@ -101,11 +115,30 @@ data:
             in_cluster: true
 
 ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: torrent-input-tpl
+  namespace: logging
+  labels:
+    k8s-app: torrent-logging
+data:
+  filebeat-input-log.tpl: |-
+    - type: log
+      enabled: true
+      paths:
+        - {{ .logPath }}/{{ .logFiles }}
+      fields:
+        module_name: {{ .moduleName }}
+        log_type: {{ .logType }}
+      tail_files: true
+
+---
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: torrent-filebeat
-  namespace: monitoring
+  namespace: logging
   labels:
     k8s-app: torrent-logging
 spec:
@@ -121,7 +154,17 @@ spec:
       containers:
       - name: torrent
         image: 10.5.29.100:5000/torrent
-        imagePullPolicy: Always
+        imagePullPolicy: IfNotPresent
+        env:
+          - name: DOCKER_CLIENT_VERSION
+            value: 1.39
+        resources:
+          limits:
+            cpu: 300m
+            memory: 300Mi
+          requests:
+            cpu: 100m
+            memory: 100Mi
         volumeMounts:
           - mountPath: /var/run/docker.sock
             name: docker-sock-volume
@@ -131,34 +174,24 @@ spec:
           # copy input config from ConfigMap
           - name: input-config-map
             mountPath: /etc/config/input
+          - name: torrent-input-tpl
+            mountPath: /
 
       - name: filebeat
-        image: elastic/filebeat:6.5.4
+        image: elastic/filebeat:6.8.2
         imagePullPolicy: IfNotPresent
         args: [
           "-c", "/etc/filebeat.yml",
           "-e",
         ]
-        env:
-          - name: ELASTICSEARCH_HOST
-            value: elasticsearch
-          - name: ELASTICSEARCH_PORT
-            value: "9200"
-          - name: ELASTICSEARCH_USERNAME
-            value: elastic
-          - name: ELASTICSEARCH_PASSWORD
-            value: changeme
-          - name: ELASTIC_CLOUD_ID
-            value:
-          - name: ELASTIC_CLOUD_AUTH
-            value:
         securityContext:
           runAsUser: 0
           # If using Red Hat OpenShift uncomment this:
           #privileged: true
         resources:
           limits:
-            memory: 200Mi
+            cpu: 300m
+            memory: 300Mi
           requests:
             cpu: 100m
             memory: 100Mi
@@ -208,3 +241,6 @@ spec:
             # Provide the name of the ConfigMap containing the files you want
             # to add to the container
             name: filebeat-inputs
+        - name: torrent-input-tpl
+          configMap:
+            name: torrent-input-tpl

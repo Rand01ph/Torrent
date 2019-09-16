@@ -16,10 +16,10 @@ COPY ./go.mod ./go.sum ./
 RUN go mod download
 
 COPY ./ ./
-RUN CGO_ENABLED=0 go build \
-    -o /app .
+RUN CGO_ENABLED=0 go build -o /app .
 
 FROM alpine AS final
 COPY --from=builder /app /app
-COPY ./filebeat-input-log.tpl /filebeat-input-log.tpl
+RUN mkdir -p /tpl
+COPY ./filebeat-input-log.tpl /tpl/filebeat-input-log.tpl
 ENTRYPOINT ["/app"]

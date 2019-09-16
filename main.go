@@ -32,12 +32,24 @@ import (
 )
 
 const (
-	inputTemplatePath = "filebeat-input-log.tpl"
-	moduleNameTag     = "torrent/module_name"
-	logPathTag        = "torrent/log_path"
-	srcDir            = "/etc/config/input"
-	dstDir            = "/tmp"
+	moduleNameTag = "torrent/module_name"
+	logPathTag    = "torrent/log_path"
+	srcDir        = "/etc/config/input"
+	dstDir        = "/tmp"
+	inputTemplatePath   = "/tpl/filebeat-input-log.tpl"
 )
+
+var (
+	dockerClientVersion string
+)
+
+func init() {
+	if os.Getenv("DOCKER_CLIENT_VERSION") == "" {
+		dockerClientVersion = "1.38"
+	} else {
+		dockerClientVersion = os.Getenv("DOCKER_CLIENT_VERSION")
+	}
+}
 
 func main() {
 
@@ -161,7 +173,7 @@ func deletePodLog(obj interface{}) {
 		return
 	}
 	log.Printf("Pod %s Deleted and container id is %s", mObj.Name, containerID)
-	files, err := filepath.Glob("/tmp/"+containerID+"_*.yml")
+	files, err := filepath.Glob("/tmp/" + containerID + "_*.yml")
 	if err != nil {
 		log.Printf("find delete config error is %v", err)
 	}
@@ -174,7 +186,7 @@ func deletePodLog(obj interface{}) {
 
 func getHostLogDir(containerId string, logType string, logDestination string, logFiles string, moduleName string) string {
 	rt := ""
-	dockerClient, err := client.NewClientWithOpts(client.WithVersion("1.38"))
+	dockerClient, err := client.NewClientWithOpts(client.WithVersion(dockerClientVersion))
 	//dockerC, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
 		panic(err.Error())

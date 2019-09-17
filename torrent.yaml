@@ -205,9 +205,6 @@ spec:
             readOnly: true
           - name: data
             mountPath: /usr/share/filebeat/data
-          - name: varlibdockercontainers
-            mountPath: /var/lib/docker/containers
-            readOnly: true
           - name: root
             mountPath: /host
             readOnly: true
@@ -220,9 +217,10 @@ spec:
           configMap:
             defaultMode: 0600
             name: filebeat-config
-        - name: varlibdockercontainers
+        # use for collect emptyDir log
+        - name: root
           hostPath:
-            path: /var/lib/docker/containers
+              path: /
         - name: inputs
           emptyDir: {}
 #            defaultMode: 0600
@@ -232,10 +230,6 @@ spec:
           hostPath:
             path: /var/lib/filebeat-data
             type: DirectoryOrCreate
-        # use for collect emptyDir log
-        - name: root
-          hostPath:
-            path: /
         - name: input-config-map
           configMap:
             # Provide the name of the ConfigMap containing the files you want

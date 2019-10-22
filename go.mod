@@ -40,6 +40,8 @@ require (
 	k8s.io/api v0.0.0-20190202010724-74b699b93c15
 	k8s.io/apimachinery v0.0.0-20190221093215-450d01ad5771 // indirect
 	k8s.io/client-go v10.0.0+incompatible
-	k8s.io/klog v0.2.0 // indirect
+	k8s.io/klog v0.2.0
 	sigs.k8s.io/yaml v1.1.0 // indirect
 )
+
+go 1.13

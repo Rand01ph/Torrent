@@ -14,15 +14,16 @@ import (
     "fmt"
     "io"
     "io/ioutil"
+    "k8s.io/klog"
     "log"
     "os"
     "path"
     "path/filepath"
     "strings"
     "text/template"
+    "time"
 
     "github.com/docker/docker/client"
-    "github.com/fsnotify/fsnotify"
     "golang.org/x/net/context"
     coreV1 "k8s.io/api/core/v1"
     "k8s.io/client-go/informers"
@@ -52,54 +53,34 @@ func init() {
 }
 
 func main() {
+    klog.InitFlags(nil)
+
+    stopCh := make(chan struct{})
 
     // creates the in-cluster config
     config, err := rest.InClusterConfig()
     if err != nil {
-        panic(err.Error())
-    }
-    // creates the clientSet
-    clientSet, err := kubernetes.NewForConfig(config)
-    if err != nil {
-        panic(err.Error())
+    	klog.Fatalf("Error building kubeconfig: %s", err.Error())
     }
 
-    copyConfigMap(srcDir, dstDir)
-
-    ctx, cancel := context.WithCancel(context.Background())
-    defer cancel()
-
-    // auto reload configmap for filebeat
-    watcher, err := fsnotify.NewWatcher()
+    kubeClient, err := kubernetes.NewForConfig(config)
     if err != nil {
-        log.Fatal(err)
+    	klog.Fatalf("Error building kubernets clientset: %s", err.Error())
     }
-    defer watcher.Close()
 
-    go func(ctx context.Context) {
-        for {
-            select {
-            case event := <-watcher.Events:
-                if event.Op&fsnotify.Create == fsnotify.Create {
-                    if filepath.Base(event.Name) == "..data" {
-                        log.Println("config map updated")
-                        copyConfigMap(srcDir, dstDir)
-                    }
-                }
-            case err := <-watcher.Errors:
-                log.Println("error:", err)
-            case <-ctx.Done():
-                log.Println("controller exit...")
-                return
-            }
-        }
-    }(ctx)
-    err = watcher.Add(srcDir)
-    if err != nil {
-        log.Fatal(err)
+    kubeInformerFactory := informers.NewSharedInformerFactory(kubeClient, time.Second*30)
+
+    controller := NewController(kubeClient, kubeInformerFactory.Core().V1().Pods())
+
+    kubeInformerFactory.Start(stopCh)
+
+    if err = controller.Run(2, stopCh); err != nil {
+        klog.Fatalf("Error running controller: %s", err.Error())
     }
 
     factory := informers.NewSharedInformerFactory(clientSet, 0)
+
+
     informer := factory.Core().V1().Pods().Informer()
     stopper := make(chan struct{})
     defer close(stopper)

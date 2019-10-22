@@ -54,25 +54,25 @@ data:
     filebeat.autodiscover:
       providers:
         - type: kubernetes
-          include_annotations: ['torrent/stream']
+          include_annotations: ['torrent/stream', 'torrent/module_name']
           templates:
             - condition:
                 equals:
                   kubernetes.annotations.torrent/stream: 'true'
               config:
                 - type: docker
+                  fields:
+                    module_name: "${data.kubernetes.annotations.torrent/module_name}"
                   containers:
                     stream: all
                     ids:
                     - "${data.kubernetes.container.id}"
-    logging.level: error
-    logging.to_files: true
+    queue.mem:
+      events: 4096
+      flush.min_events: 512
+      flush.timeout: 5s
+    logging.level: info
     logging.metrics.enabled: true
-    logging.files:
-      path: /tmp/filebeat
-      name: filebeat_log
-      keepfiles: 7
-      permissions: 0644
     filebeat.config:
       inputs:
         # Mounted `filebeat-inputs` configmap:
@@ -85,34 +85,34 @@ data:
         # Reload module configs as they change:
         reload.enabled: true
         reload.period: 10s
-    output.kafka:
+    output.console:
       enabled: true
-      hosts: ["10.5.25.3:9092"]
-      version: 0.10.2.1
-      topic: '*'
-      compression: gzip
-      max_message_bytes: 1000000
-#    output.file:
-#      path: "/tmp/torrent"
-#      filename: torrent
 
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: filebeat-inputs
-  namespace: logging
-  labels:
-    k8s-app: torrent-logging
+    name: torrent-input-tpl
+    namespace: logging
+    labels:
+        k8s-app: torrent-logging
 data:
-  kubernetes.yml: |-
-    - type: docker
-      containers.ids:
-      - "*"
-      close_inactive: 48h
-      processors:
-        - add_kubernetes_metadata:
-            in_cluster: true
+    filebeat-input-log.tpl: |-
+        - type: log
+          enabled: true
+          harvester_buffer_size: 10485760
+          paths:
+            - {{ .logPath }}/{{ .logFiles }}
+          fields:
+            module_name: {{ .moduleName }}
+            log_type: {{ .logType }}
+          tail_files: true
+          max_bytes: 1048576
+          close_inactive: 1h
+          close_renamed: true
+          close_removed: true
+          close_eof: false
+          close_timeout: 3600
 
 ---
 apiVersion: v1
@@ -153,7 +153,7 @@ spec:
       serviceAccountName: torrent
       containers:
       - name: torrent
-        image: 10.5.29.100:5000/torrent
+        image: registry/torrent
         imagePullPolicy: IfNotPresent
         env:
           - name: DOCKER_CLIENT_VERSION
@@ -171,11 +171,9 @@ spec:
           # mount for generate log inputs
           - mountPath: /tmp
             name: inputs
-          # copy input config from ConfigMap
-          - name: input-config-map
-            mountPath: /etc/config/input
+          # torrent for filebeat input template
           - name: torrent-input-tpl
-            mountPath: /
+            mountPath: /tpl
 
       - name: filebeat
         image: elastic/filebeat:6.8.2
@@ -196,7 +194,7 @@ spec:
             cpu: 100m
             memory: 100Mi
         volumeMounts:
-          - name: config
+          - name: filebeat-config
             mountPath: /etc/filebeat.yml
             readOnly: true
             subPath: filebeat.yml
@@ -210,32 +208,26 @@ spec:
             readOnly: true
             mountPropagation: HostToContainer
       volumes:
-        - name: docker-sock-volume
-          hostPath:
-            path: /var/run/docker.sock
-            type: File
-        - name: config
+        - name: filebeat-config
           configMap:
             defaultMode: 0600
             name: filebeat-config
+        # data folder stores a registry of read status for all files, so we don't send everything again on a Filebeat pod restart
+        - name: data
+          hostPath:
+              path: /var/lib/filebeat-data
+              type: DirectoryOrCreate
         # use for collect emptyDir log
         - name: root
           hostPath:
               path: /
+        # shared for input file
         - name: inputs
           emptyDir: {}
-#            defaultMode: 0600
-#            name: filebeat-inputs
-        # data folder stores a registry of read status for all files, so we don't send everything again on a Filebeat pod restart
-        - name: data
+        - name: docker-sock-volume
           hostPath:
-            path: /var/lib/filebeat-data
-            type: DirectoryOrCreate
-        - name: input-config-map
-          configMap:
-            # Provide the name of the ConfigMap containing the files you want
-            # to add to the container
-            name: filebeat-inputs
+              path: /var/run/docker.sock
+              type: File
         - name: torrent-input-tpl
           configMap:
-            name: torrent-input-tpl
+              name: torrent-input-tpl

@@ -2,7 +2,7 @@ apiVersion: skaffold/v1beta7
 kind: Config
 build:
   artifacts:
-  - image: registry/torrent
+  - image: registry:5000/torrent
     docker:
       buildArgs: {}
   local: {}

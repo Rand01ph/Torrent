@@ -153,11 +153,8 @@ spec:
       serviceAccountName: torrent
       containers:
       - name: torrent
-        image: registry/torrent
+        image: registry:5000/torrent
         imagePullPolicy: IfNotPresent
-        env:
-          - name: DOCKER_CLIENT_VERSION
-            value: 1.39
         resources:
           limits:
             cpu: 300m
@@ -166,11 +163,11 @@ spec:
             cpu: 100m
             memory: 100Mi
         volumeMounts:
-          - mountPath: /var/run/docker.sock
-            name: docker-sock-volume
+          - name: docker-sock-volume
+            mountPath: /var/run/docker.sock
           # mount for generate log inputs
-          - mountPath: /tmp
-            name: inputs
+          - name: inputs
+            mountPath: /tmp
           # torrent for filebeat input template
           - name: torrent-input-tpl
             mountPath: /tpl
@@ -215,19 +212,19 @@ spec:
         # data folder stores a registry of read status for all files, so we don't send everything again on a Filebeat pod restart
         - name: data
           hostPath:
-              path: /var/lib/filebeat-data
-              type: DirectoryOrCreate
+            path: /var/lib/filebeat-data
+            type: DirectoryOrCreate
         # use for collect emptyDir log
         - name: root
           hostPath:
-              path: /
+            path: /
         # shared for input file
         - name: inputs
           emptyDir: {}
         - name: docker-sock-volume
           hostPath:
-              path: /var/run/docker.sock
-              type: File
+            path: /var/run/docker.sock
+            type: File
         - name: torrent-input-tpl
           configMap:
-              name: torrent-input-tpl
+            name: torrent-input-tpl

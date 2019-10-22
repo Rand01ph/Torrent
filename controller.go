@@ -159,7 +159,7 @@ func (c *Controller) syncHandler(key string) error {
         // The Pod resource may no longer exist, in which case we stop
         // processing.
         if errors.IsNotFound(err) {
-            klog.Info("Pod does not exist in local cache: %s/%s, will delete it from Torrent", namespace, name)
+            klog.Infof("Pod does not exist in local cache: %s/%s, will delete it from Torrent", namespace, name)
             // Get Torrent module_name and filter Container by it
             moduleName := pod.Annotations[moduleNameTag]
             for _, container := range pod.Status.ContainerStatuses {
@@ -168,7 +168,7 @@ func (c *Controller) syncHandler(key string) error {
                     if containerID == "" {
                         return fmt.Errorf("failed to find container id %v", containerID)
                     }
-                    klog.Info("Pod %s Deleted and container id is %s", pod.Name, containerID)
+                    klog.Infof("Pod %s Deleted and container id is %s", pod.Name, containerID)
                     files, err := filepath.Glob("/tmp/" + containerID + "_*.yml")
                     if err != nil {
                         return fmt.Errorf("find delete config error is %v", err)
@@ -244,11 +244,10 @@ func getHostLogDir(containerId string, logType string, logDestination string, lo
         return ""
     }
     for _, m := range containerJSON.Mounts {
-        klog.Info("the container mount source is %s and destination is %s\n",
-            m.Source, m.Destination)
+        klog.Infof("the container mount source is %s and destination is %s\n", m.Source, m.Destination)
 
         if m.Destination == logDestination {
-            klog.Info("the container %s log dir is %s\n", containerId, m.Source)
+            klog.Infof("the container %s log dir is %s\n", containerId, m.Source)
             rt = "/host" + m.Source
 
             templ, err := template.ParseFiles(inputTemplatePath)
@@ -263,7 +262,8 @@ func getHostLogDir(containerId string, logType string, logDestination string, lo
                 "logType":    logType,
             }
 
-            f, err := os.Create("/tmp/" + containerId + "_" + logType + ".yml")
+            logInputConfig := "/tmp/" + containerId + "_" + logType + ".yml"
+            f, err := os.Create(logInputConfig)
             if err != nil {
                 panic(err.Error())
             }
@@ -275,6 +275,7 @@ func getHostLogDir(containerId string, logType string, logDestination string, lo
             if err := f.Close(); err != nil {
                 panic(err.Error())
             }
+            klog.Infof("create log input config %s success", logInputConfig)
         }
     }
     return rt

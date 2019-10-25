@@ -134,7 +134,7 @@ spec:
       serviceAccountName: torrent
       containers:
       - name: torrent
-        image: registry:5000/torrent
+        image: rand01ph/torrent:v2.0
         imagePullPolicy: IfNotPresent
         resources:
           limits:

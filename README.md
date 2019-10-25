@@ -40,9 +40,9 @@ kubectl apply -f https://raw.githubusercontent.com/Rand01ph/Torrent/master/torre
 
 ### Container log files config
 
-使用K8S `annotations` 标记需要收集日志的`Pod`
+使用K8S `annotations` 标记需要收集日志的`Container`
 
-使用 `torrent/module_name` 标记模块名称
+使用 `torrent/module_name` 标记模块名称对应Container name
 
 使用 `torrent/log_path` 标记log信息，使用`;`分隔多个日志路径，使用`:`分隔日志类型及日志目录及日志文件名。
 
@@ -63,26 +63,9 @@ metadata:
 
 ### Container stdout config
 
-同样也可以使用ConfigMap对Filebeat的input进行配置并支持热更新,其中K8S容器stdout部分日志通过该方式支持:
+Kubernetes容器stdout部分日志通过`filebeat`的`autodiscover`方式支持:
 
-```yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: filebeat-inputs
-  namespace: monitoring
-  labels:
-    k8s-app: torrent-logging
-data:
-  kubernetes.yml: |-
-    - type: docker
-      containers.ids:
-      - "*"
-      processors:
-        - add_kubernetes_metadata:
-            in_cluster: true
-```
-
+配置Pod的`annotations`，增加`torrent/stream: true`及`torrent/module_name: <Container name>`进行标记
 
 
 ### Logstash config for log files
@@ -123,13 +106,13 @@ output {
 
 
 
-# TODO
+# Rodemap
 
+- [X] README
+- [X] push torrent image to DockerHub
 - [ ] Update pod for log change
-- [ ] README
-- [ ] push torrent image to DockerHub
-
-
+- [ ] Upgrade to torrent-operator for config log collector use CRD -- V3.0
+- [ ] change filebeat to one of the log collector backend -- V4.0
 
 # Contribute
 

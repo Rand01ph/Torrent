@@ -10,7 +10,7 @@ import (
     "text/template"
     "time"
 
-    "github.com/docker/docker/client"
+    dockerclient "github.com/docker/docker/client"
     coreV1 "k8s.io/api/core/v1"
     "k8s.io/apimachinery/pkg/api/errors"
     "k8s.io/apimachinery/pkg/util/runtime"
@@ -30,15 +30,22 @@ type Controller struct {
     podsLister    corelistersV1.PodLister
     podsSynced    cache.InformerSynced
     // docker client
+    dockerClient *dockerclient.Client
 }
 
 func NewController(kubeclientset kubernetes.Interface, podInformer coreinformersV1.PodInformer) *Controller {
+
+    dockerClient, err := dockerclient.NewClientWithOpts(dockerclient.WithVersion(dockerClientVersion))
+    if err != nil {
+        panic(err.Error())
+    }
 
     controller := &Controller{
         kubeclientset: kubeclientset,
         podsLister:    podInformer.Lister(),
         podsSynced:    podInformer.Informer().HasSynced,
         workqueue:     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Torrent"),
+        dockerClient:  dockerClient,
     }
 
     klog.Info("Setting up event handlers")
@@ -74,7 +81,7 @@ func (c *Controller) Run(threadiness int, stopCh <-chan struct{}) error {
     }
 
     klog.Info("Starting workers")
-    // Launch two workers to process Foo resources
+    // Launch threadiness workers to process Pod resources
     for i := 0; i < threadiness; i++ {
         go wait.Until(c.runWorker, time.Second, stopCh)
     }
@@ -198,10 +205,10 @@ func (c *Controller) syncHandler(key string) error {
                     logDetails := strings.Split(l, ":")
                     if len(logDetails) == 2 {
                         logDir, logFile := path.Split(logDetails[1])
-                        go getHostLogDir(containerID, logDetails[0], logDir, logFile, moduleName)
+                        c.getHostLogDir(containerID, logDetails[0], logDir, logFile, moduleName)
                     }
                     if len(logDetails) == 3 {
-                        go getHostLogDir(containerID, logDetails[0], logDetails[1], logDetails[2], moduleName)
+                        c.getHostLogDir(containerID, logDetails[0], logDetails[1], logDetails[2], moduleName)
                     }
                 }
             }
@@ -231,14 +238,9 @@ func (c *Controller) enqueuePodDelete(obj interface{}) {
     c.workqueue.AddRateLimited(key)
 }
 
-func getHostLogDir(containerId string, logType string, logDestination string, logFiles string, moduleName string) string {
+func (c *Controller) getHostLogDir(containerId string, logType string, logDestination string, logFiles string, moduleName string) string {
     rt := ""
-    dockerClient, err := client.NewClientWithOpts(client.WithVersion(dockerClientVersion))
-    //dockerC, err := client.NewClientWithOpts(client.FromEnv)
-    if err != nil {
-        panic(err.Error())
-    }
-    containerJSON, err := dockerClient.ContainerInspect(context.Background(), containerId)
+    containerJSON, err := c.dockerClient.ContainerInspect(context.Background(), containerId)
     if err != nil {
         klog.Error(err.Error())
         return ""
@@ -262,7 +264,7 @@ func getHostLogDir(containerId string, logType string, logDestination string, lo
                 "logType":    logType,
             }
 
-            logInputConfig := "/tmp/" + containerId + "_" + logType + ".yml"
+            logInputConfig := fmt.Sprintf("/tmp/%s_%s.yml", containerId, logType)
             f, err := os.Create(logInputConfig)
             if err != nil {
                 panic(err.Error())

@@ -23,8 +23,6 @@ import (
 const (
     moduleNameTag     = "torrent/module_name"
     logPathTag        = "torrent/log_path"
-    srcDir            = "/etc/config/input"
-    dstDir            = "/tmp"
     inputTemplatePath = "/tpl/filebeat-input-log.tpl"
 )
 
@@ -62,7 +60,7 @@ func main() {
 
     kubeInformerFactory.Start(stopCh)
 
-    if err = controller.Run(2, stopCh); err != nil {
+    if err = controller.Run(1, stopCh); err != nil {
         klog.Fatalf("Error running controller: %s", err.Error())
     }
 

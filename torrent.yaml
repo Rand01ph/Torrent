@@ -115,25 +115,6 @@ data:
           close_timeout: 3600
 
 ---
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: torrent-input-tpl
-  namespace: logging
-  labels:
-    k8s-app: torrent-logging
-data:
-  filebeat-input-log.tpl: |-
-    - type: log
-      enabled: true
-      paths:
-        - {{ .logPath }}/{{ .logFiles }}
-      fields:
-        module_name: {{ .moduleName }}
-        log_type: {{ .logType }}
-      tail_files: true
-
----
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:

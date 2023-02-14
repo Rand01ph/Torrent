@@ -8,8 +8,7 @@ require (
 	github.com/docker/docker v0.7.3-0.20190111153827-295413c9d0e1
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.3.3 // indirect
-	github.com/fsnotify/fsnotify v1.4.7
-	github.com/gogo/protobuf v1.2.1 // indirect
+	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/groupcache v0.0.0-20190129154638-5b532d6fd5ef // indirect
 	github.com/google/btree v0.0.0-20180813153112-4030bb1f1f0c // indirect
 	github.com/google/go-cmp v0.2.0 // indirect
@@ -28,10 +27,7 @@ require (
 	github.com/sirupsen/logrus v1.3.0 // indirect
 	github.com/spf13/pflag v1.0.3 // indirect
 	github.com/stretchr/testify v1.3.0 // indirect
-	golang.org/x/crypto v0.0.0-20190219172222-a4c6cb3142f2 // indirect
-	golang.org/x/net v0.0.0-20190213061140-3a22650c66bd
 	golang.org/x/oauth2 v0.0.0-20190220154721-9b3c75971fc9 // indirect
-	golang.org/x/sys v0.0.0-20190222072716-a9d3bda3a223 // indirect
 	golang.org/x/time v0.0.0-20181108054448-85acf8d2951c // indirect
 	google.golang.org/grpc v1.18.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
